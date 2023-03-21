@@ -47,3 +47,23 @@ swift_library(
     name = "baz",
     srcs = ["baz.swift"],
 )
+
+sh_test(
+    name = "data_test",
+    srcs = ["data_test.sh"],
+    args = ["$(location :list_data_bin)"],
+    data = [":list_data_bin"],
+)
+
+swift_binary(
+    name = "list_data_bin",
+    srcs = ["list_data_bin.swift"],
+    data = ["foo.txt"],
+    deps = [":list_data_lib"],
+)
+
+swift_library(
+    name = "list_data_lib",
+    srcs = ["list_data_lib.swift"],
+    data = ["bar.txt"],
+)

@@ -55,6 +55,7 @@ def _swift_binary_impl(ctx):
     # one is executable (in this case, there's only one).
     return [DefaultInfo(
         files = depset([executable]),
+        # EXERCISE: create and return a runfiles instance.
         executable = executable,
     )]
 
@@ -68,6 +69,7 @@ swift_binary = rule(
             allow_files = [".swift"],
             doc = "Source files to compile for the main package of this binary",
         ),
+        # EXERCISE: add a data attribute
         "deps": attr.label_list(
             providers = [SwiftLibraryInfo],
             doc = "Direct dependencies of the binary",
@@ -96,7 +98,10 @@ def _swift_library_impl(ctx):
 
     # Return the output file and metadata about the library.
     return [
-        DefaultInfo(files = depset([archive, swiftmodule])),
+        DefaultInfo(
+            files = depset([archive, swiftmodule]),
+            # EXERCISE: create and return a runfiles instance.
+        ),
         SwiftLibraryInfo(
             info = struct(
                 archive = archive,
@@ -116,6 +121,7 @@ swift_library = rule(
             allow_files = [".swift"],
             doc = "Source files to compile",
         ),
+        # EXERCISE: add a data attribute
         "deps": attr.label_list(
             providers = [SwiftLibraryInfo],
             doc = "Direct dependencies of the library",
