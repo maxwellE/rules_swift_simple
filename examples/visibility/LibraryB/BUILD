@@ -8,4 +8,7 @@ swift_library(
     srcs = [
         "LibraryB.swift",
     ],
+    visibility = [
+        "//examples/visibility/LibraryA:__pkg__",
+    ],
 )

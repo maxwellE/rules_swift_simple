@@ -9,6 +9,6 @@ swift_library(
         "LibraryC.swift",
     ],
     data = glob([
-        "data/*.csv",
+        "data/*.txt",
     ]),
 )
