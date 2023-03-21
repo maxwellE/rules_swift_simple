@@ -16,17 +16,53 @@ load(
 load("@bazel_skylib//lib:paths.bzl", "paths")
 
 def swift_compile(ctx, srcs, out):
-    """Compiles a single Swift package from sources.
+    """Compiles an archive .a file from Swift sources.
 
     Args:
         ctx: analysis context.
         srcs: list of source Files to be compiled.
-        out: output .a file. Should have the importpath as a suffix,
-            for example, library "example.com/foo" should have the path
-            "somedir/example.com/foo.a".
+        out: output .a file.
     """
     module_name = ctx.label.package.replace("/", "_")
-    return _create_archive_file(ctx, out, module_name, srcs)
+    args = ctx.actions.args()
+    args.add_all([
+        "-frontend",
+        "-c",
+    ])
+    args.add_all(srcs)
+    args.add_all([
+        "-target",
+        "arm64-apple-macos10.15",
+        "-Xllvm",
+        "-aarch64-use-tbi",
+        "-stack-check",
+        "-sdk",
+        apple_support.path_placeholders.sdkroot(),
+        "-Onone",
+        "-D",
+        "DEBUG",
+        "-framework",
+        "Foundation",
+        "-enable-objc-interop",
+        "-resource-dir",
+        "__BAZEL_XCODE_DEVELOPER_DIR__/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift",
+        "-module-name",
+        module_name,
+        "-o",
+        out,
+        "-disable-clang-spi",
+    ])
+    apple_support.run(
+        actions = ctx.actions,
+        arguments = [args],
+        inputs = srcs,
+        outputs = [out],
+        executable = "/usr/bin/swift",
+        mnemonic = "SwiftCreateArchive",
+        xcode_config = ctx.attr._xcode_config[apple_common.XcodeVersionConfig],
+        apple_fragment = ctx.fragments.apple,
+        xcode_path_resolve_level = apple_support.xcode_path_resolve_level.args,
+    )
 
 def swift_link(ctx, out, main):
     """Links a Swift executable.
@@ -91,45 +127,3 @@ def _create_static_library(ctx, binary):
     )
 
     return static_library
-
-def _create_archive_file(ctx, archive_file, module_name, srcs):
-    args = ctx.actions.args()
-    args.add_all([
-        "-frontend",
-        "-c",
-    ])
-    args.add_all(srcs)
-    args.add_all([
-        "-target",
-        "arm64-apple-macos10.15",
-        "-Xllvm",
-        "-aarch64-use-tbi",
-        "-stack-check",
-        "-sdk",
-        apple_support.path_placeholders.sdkroot(),
-        "-Onone",
-        "-D",
-        "DEBUG",
-        "-framework",
-        "Foundation",
-        "-enable-objc-interop",
-        "-resource-dir",
-        "__BAZEL_XCODE_DEVELOPER_DIR__/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift",
-        "-module-name",
-        module_name,
-        "-o",
-        archive_file,
-        "-disable-clang-spi",
-    ])
-    apple_support.run(
-        actions = ctx.actions,
-        arguments = [args],
-        inputs = srcs,
-        outputs = [archive_file],
-        executable = "/usr/bin/swift",
-        mnemonic = "SwiftCreateArchive",
-        xcode_config = ctx.attr._xcode_config[apple_common.XcodeVersionConfig],
-        apple_fragment = ctx.fragments.apple,
-        xcode_path_resolve_level = apple_support.xcode_path_resolve_level.args,
-    )
-    return archive_file

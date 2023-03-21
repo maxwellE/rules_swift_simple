@@ -9,27 +9,12 @@ dependencies of a library) and create a plan of how to build it (output files,
 actions).
 """
 
-load("@bazel_skylib//lib:dicts.bzl", "dicts")
-load(
-    "@build_bazel_apple_support//lib:apple_support.bzl",
-    "apple_support",
-)
-
 def _swift_binary_impl(ctx):
-    return []
+    # EXERCISE: declare output file, call swift_compile, swift_link to create
+    # actions, return DefaultInfo.
+    pass
 
 # Declare the swift_binary rule. This statement is evaluated during the loading
 # phase when this file is loaded. The function body above is evaluated only
 # during the analysis phase.
-swift_binary = rule(
-    implementation = _swift_binary_impl,
-    attrs = dicts.add(apple_support.action_required_attrs(), {
-        "srcs": attr.label_list(
-            allow_files = [".swift"],
-            doc = "Source files to compile for the main package of this binary",
-        ),
-    }),
-    doc = "Builds an executable program from Swift source code",
-    executable = True,
-    fragments = ["apple"],
-)
+swift_binary = None
