@@ -53,9 +53,14 @@ def _swift_binary_impl(ctx):
     # Return the DefaultInfo provider. This tells Bazel what files should be
     # built when someone asks to build a swift_binary rules. It also says which
     # one is executable (in this case, there's only one).
+    runfiles = _collect_runfiles(
+        ctx,
+        direct_files = ctx.files.data,
+        indirect_targets = ctx.attr.data + ctx.attr.deps,
+    )
     return [DefaultInfo(
         files = depset([executable]),
-        # EXERCISE: create and return a runfiles instance.
+        runfiles = runfiles,
         executable = executable,
     )]
 
@@ -69,7 +74,10 @@ swift_binary = rule(
             allow_files = [".swift"],
             doc = "Source files to compile for the main package of this binary",
         ),
-        # EXERCISE: add a data attribute
+        "data": attr.label_list(
+            allow_files = True,
+            doc = "Data files available to binaries using this library",
+        ),
         "deps": attr.label_list(
             providers = [SwiftLibraryInfo],
             doc = "Direct dependencies of the binary",
@@ -97,10 +105,15 @@ def _swift_library_impl(ctx):
     )
 
     # Return the output file and metadata about the library.
+    runfiles = _collect_runfiles(
+        ctx,
+        direct_files = ctx.files.data,
+        indirect_targets = ctx.attr.data + ctx.attr.deps,
+    )
     return [
         DefaultInfo(
             files = depset([archive, swiftmodule]),
-            # EXERCISE: create and return a runfiles instance.
+            runfiles = runfiles,
         ),
         SwiftLibraryInfo(
             info = struct(
@@ -121,7 +134,10 @@ swift_library = rule(
             allow_files = [".swift"],
             doc = "Source files to compile",
         ),
-        # EXERCISE: add a data attribute
+        "data": attr.label_list(
+            allow_files = True,
+            doc = "Data files available to binaries using this library",
+        ),
         "deps": attr.label_list(
             providers = [SwiftLibraryInfo],
             doc = "Direct dependencies of the library",
@@ -130,3 +146,22 @@ swift_library = rule(
     doc = "Compiles a Swift archive from Swift sources and dependencies",
     fragments = ["apple"],
 )
+
+def _collect_runfiles(ctx, direct_files, indirect_targets):
+    """Builds a runfiles object for the current target.
+
+    Args:
+        ctx: analysis context.
+        direct_files: list of Files to include directly.
+        indirect_targets: list of Targets to gather transitive runfiles from.
+    Returns:
+        A runfiles object containing direct_files and runfiles from
+        indirect_targets. The files from indirect_targets won't be included
+        unless they are also included in runfiles.
+    """
+    return ctx.runfiles(
+        files = direct_files,
+        transitive_files = depset(
+            transitive = [target[DefaultInfo].default_runfiles.files for target in indirect_targets],
+        ),
+    )
