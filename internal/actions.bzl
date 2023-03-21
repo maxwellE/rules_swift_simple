@@ -37,7 +37,6 @@ def declare_swiftmodule(ctx, module_name):
 
     .swiftmodule files are consumed by the linker for dependency
     resolution.
-
     Args:
         ctx: analysis context.
         module_name: the name by which the library may be imported.
@@ -49,54 +48,22 @@ def declare_swiftmodule(ctx, module_name):
         module_name = module_name,
     ))
 
-def swift_compile(ctx, srcs, out):
-    """Compiles an archive .a file from Swift sources.
+def swift_compile(ctx, srcs, archive, swiftmodule, is_library, deps):
+    """Compiles a single Swift package from sources.
 
     Args:
         ctx: analysis context.
         srcs: list of source Files to be compiled.
-        out: output .a file.
+        archive: output .a file. Should have the importpath as a suffix,
+            for example, library "example.com/foo" should have the path
+            "somedir/example.com/foo.a".
+        swiftmodule: Output "swiftmodule" `File`.
+        is_library: Controls if library based flags are provided to swift compilation
+        deps: `depset` of `SwiftLibraryInfo` objects.
     """
-    module_name = ctx.label.package.replace("/", "_")
-    args = ctx.actions.args()
-    args.add_all([
-        "-frontend",
-        "-c",
-    ])
-    args.add_all(srcs)
-    args.add_all([
-        "-target",
-        "arm64-apple-macos10.15",
-        "-Xllvm",
-        "-aarch64-use-tbi",
-        "-stack-check",
-        "-sdk",
-        apple_support.path_placeholders.sdkroot(),
-        "-Onone",
-        "-D",
-        "DEBUG",
-        "-framework",
-        "Foundation",
-        "-enable-objc-interop",
-        "-resource-dir",
-        "__BAZEL_XCODE_DEVELOPER_DIR__/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift",
-        "-module-name",
-        module_name,
-        "-o",
-        out,
-        "-disable-clang-spi",
-    ])
-    apple_support.run(
-        actions = ctx.actions,
-        arguments = [args],
-        inputs = srcs,
-        outputs = [out],
-        executable = "/usr/bin/swift",
-        mnemonic = "SwiftCreateArchive",
-        xcode_config = ctx.attr._xcode_config[apple_common.XcodeVersionConfig],
-        apple_fragment = ctx.fragments.apple,
-        xcode_path_resolve_level = apple_support.xcode_path_resolve_level.args,
-    )
+    module_name = ctx.label.name
+    _create_swiftmodule_file(ctx, swiftmodule, module_name, srcs, is_library, deps.to_list())
+    _create_archive_file(ctx, archive, module_name, srcs, is_library, deps.to_list())
 
 def swift_link(ctx, out, main, deps = []):
     """Links a Swift executable.
@@ -167,3 +134,116 @@ def _create_static_library(ctx, binary):
     )
 
     return static_library
+
+def _create_archive_file(ctx, archive_file, module_name, srcs, is_library, deps):
+    args = ctx.actions.args()
+    args.add_all([
+        "-frontend",
+        "-c",
+    ])
+    args.add_all(srcs)
+    args.add_all([
+        "-target",
+        "arm64-apple-macos10.15",
+        "-Xllvm",
+        "-aarch64-use-tbi",
+        "-stack-check",
+        "-sdk",
+        apple_support.path_placeholders.sdkroot(),
+        "-no-serialize-debugging-options",
+        "-no-clang-module-breadcrumbs",
+        "-enable-bare-slash-regex",
+        "-Onone",
+        "-D",
+        "DEBUG",
+        "-framework",
+        "Foundation",
+        "-enable-objc-interop",
+        "-empty-abi-descriptor",
+        "-resource-dir",
+        "__BAZEL_XCODE_DEVELOPER_DIR__/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift",
+        "-module-name",
+        module_name,
+        "-disable-clang-spi",
+        "-target-sdk-version",
+        "12.3",
+        "-o",
+        archive_file,
+        "-disable-clang-spi",
+    ])
+    swiftmodule_files = [dep.swiftmodule for dep in deps]
+    for swiftmodule in swiftmodule_files:
+        args.add_all([
+            "-I",
+            paths.dirname(swiftmodule.path),
+        ])
+    if is_library:
+        args.add("-parse-as-library")
+    apple_support.run(
+        actions = ctx.actions,
+        arguments = [args],
+        inputs = srcs + swiftmodule_files,
+        outputs = [archive_file],
+        executable = "/usr/bin/swift",
+        mnemonic = "SwiftCreateArchive",
+        xcode_config = ctx.attr._xcode_config[apple_common.XcodeVersionConfig],
+        apple_fragment = ctx.fragments.apple,
+        xcode_path_resolve_level = apple_support.xcode_path_resolve_level.args,
+    )
+    return archive_file
+
+def _create_swiftmodule_file(ctx, swiftmodule_file, module_name, srcs, is_library, deps):
+    args = ctx.actions.args()
+    args.add_all([
+        "-frontend",
+        "-emit-module",
+    ])
+    args.add_all(srcs)
+    args.add_all([
+        "-target",
+        "arm64-apple-macos10.15",
+        "-Xllvm",
+        "-aarch64-use-tbi",
+        "-stack-check",
+        "-sdk",
+        apple_support.path_placeholders.sdkroot(),
+        "-Onone",
+        "-D",
+        "DEBUG",
+        "-framework",
+        "Foundation",
+        "-enable-objc-interop",
+        "-empty-abi-descriptor",
+        "-resource-dir",
+        "__BAZEL_XCODE_DEVELOPER_DIR__/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift",
+        "-module-name",
+        module_name,
+        "-disable-clang-spi",
+        "-target-sdk-version",
+        "12.3",
+        "-o",
+        swiftmodule_file,
+        "-disable-clang-spi",
+        "-target-sdk-version",
+        "12.3",
+    ])
+    swiftmodule_files = [dep.swiftmodule for dep in deps]
+    for swiftmodule in swiftmodule_files:
+        args.add_all([
+            "-I",
+            paths.dirname(swiftmodule.path),
+        ])
+    if is_library:
+        args.add("-parse-as-library")
+    apple_support.run(
+        actions = ctx.actions,
+        arguments = [args],
+        inputs = srcs + swiftmodule_files,
+        outputs = [swiftmodule_file],
+        executable = "/usr/bin/swift",
+        mnemonic = "SwiftCreateSwiftmodule",
+        xcode_config = ctx.attr._xcode_config[apple_common.XcodeVersionConfig],
+        apple_fragment = ctx.fragments.apple,
+        xcode_path_resolve_level = apple_support.xcode_path_resolve_level.args,
+    )
+    return swiftmodule_file

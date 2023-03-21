@@ -18,13 +18,9 @@ load(
 load(":providers.bzl", "SwiftLibraryInfo")
 
 def _swift_binary_impl(ctx):
-    # EXERCISE: collect SwiftLibraryInfo from dependencies, pass to swift_compile
-    # and swift_link.
-    deps = []
-
-    # Declare an output file for archive and output swiftmodule file for the main package
-    # and compile it from srcs. All our output files will start with a prefix to avoid
-    # conflicting with other rules.
+    # Declare an output file for the main package and compile it from srcs. All
+    # our output files will start with a prefix to avoid conflicting with
+    # other rules.
     main_archive = declare_archive(ctx, "main")
     swiftmodule = declare_swiftmodule(ctx, "main")
     swift_compile(
@@ -32,7 +28,10 @@ def _swift_binary_impl(ctx):
         srcs = ctx.files.srcs,
         archive = main_archive,
         swiftmodule = swiftmodule,
-        deps = deps,
+        deps = depset(
+            direct = [dep[SwiftLibraryInfo].info for dep in ctx.attr.deps],
+            transitive = [dep[SwiftLibraryInfo].deps for dep in ctx.attr.deps],
+        ),
         is_library = False,
     )
 
@@ -44,7 +43,10 @@ def _swift_binary_impl(ctx):
     swift_link(
         ctx,
         main = main_archive,
-        deps = deps,
+        deps = depset(
+            direct = [dep[SwiftLibraryInfo].info for dep in ctx.attr.deps],
+            transitive = [dep[SwiftLibraryInfo].deps for dep in ctx.attr.deps],
+        ),
         out = executable,
     )
 
@@ -77,10 +79,48 @@ swift_binary = rule(
 )
 
 def _swift_library_impl(ctx):
-    pass
-    # EXERCISE: declare output files for swiftmodule, archive, actions, return SwiftLibraryInfo
-    # and DefaultInfo.
+    # Declare an output file for the library package and compile it from srcs.
+    archive = declare_archive(ctx, ctx.label.name)
+    swiftmodule = declare_swiftmodule(ctx, ctx.label.name)
+    swift_compile(
+        ctx,
+        srcs = ctx.files.srcs,
+        archive = archive,
+        swiftmodule = swiftmodule,
+        deps = depset(
+            direct = [dep[SwiftLibraryInfo].info for dep in ctx.attr.deps],
+            transitive = [dep[SwiftLibraryInfo].deps for dep in ctx.attr.deps],
+        ),
+        is_library = True,
+    )
 
-# EXERCISE: declare swift_library with srcs, deps.
-# Returns SwiftLibraryInfo provider.
-swift_library = None
+    # Return the output file and metadata about the library.
+    return [
+        DefaultInfo(files = depset([archive, swiftmodule])),
+        SwiftLibraryInfo(
+            info = struct(
+                archive = archive,
+                swiftmodule = swiftmodule,
+            ),
+            deps = depset(
+                direct = [dep[SwiftLibraryInfo].info for dep in ctx.attr.deps],
+                transitive = [dep[SwiftLibraryInfo].deps for dep in ctx.attr.deps],
+            ),
+        ),
+    ]
+
+swift_library = rule(
+    implementation = _swift_library_impl,
+    attrs = dicts.add(apple_support.action_required_attrs(), {
+        "srcs": attr.label_list(
+            allow_files = [".swift"],
+            doc = "Source files to compile",
+        ),
+        "deps": attr.label_list(
+            providers = [SwiftLibraryInfo],
+            doc = "Direct dependencies of the library",
+        ),
+    }),
+    doc = "Compiles a Swift archive from Swift sources and dependencies",
+    fragments = ["apple"],
+)
