@@ -1,4 +1,4 @@
-# Copyright Jay Conrod. All rights reserved.
+# Copyright Maxwell Elliott. All rights reserved.
 
 # This file is part of rules_swift_simple. Use of this source code is governed by
 # the 3-clause BSD license that can be found in the LICENSE.txt file.
@@ -12,6 +12,13 @@ Internal definitions may change without notice.
 load(
     "//internal:rules.bzl",
     _swift_binary = "swift_binary",
+    _swift_library = "swift_library",
+)
+load(
+    "//internal:providers.bzl",
+    _SwiftLibraryInfo = "SwiftLibraryInfo",
 )
 
 swift_binary = _swift_binary
+swift_library = _swift_library
+SwiftLibraryInfo = _SwiftLibraryInfo

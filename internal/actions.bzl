@@ -15,6 +15,40 @@ load(
 )
 load("@bazel_skylib//lib:paths.bzl", "paths")
 
+def declare_archive(ctx, module_name):
+    """Declares a new .a file the compiler should produce.
+
+    .a files are consumed by the compiler (for dependency type information)
+    and the linker. Both tools locate archives using lists of search paths.
+
+    Args:
+        ctx: analysis context.
+        module_name: the name by which the library may be imported.
+    Returns:
+        A File that should be written by the compiler.
+    """
+    return ctx.actions.declare_file("{name}/{module_name}.a".format(
+        name = ctx.label.name,
+        module_name = module_name,
+    ))
+
+def declare_swiftmodule(ctx, module_name):
+    """Declares a new .swiftmodule file the compiler should produce.
+
+    .swiftmodule files are consumed by the linker for dependency
+    resolution.
+
+    Args:
+        ctx: analysis context.
+        module_name: the name by which the library may be imported.
+    Returns:
+        A File that should be written by the compiler.
+    """
+    return ctx.actions.declare_file("{name}/{module_name}.swiftmodule".format(
+        name = ctx.label.name,
+        module_name = module_name,
+    ))
+
 def swift_compile(ctx, srcs, out):
     """Compiles an archive .a file from Swift sources.
 
@@ -64,13 +98,14 @@ def swift_compile(ctx, srcs, out):
         xcode_path_resolve_level = apple_support.xcode_path_resolve_level.args,
     )
 
-def swift_link(ctx, out, main):
+def swift_link(ctx, out, main, deps = []):
     """Links a Swift executable.
 
     Args:
         ctx: analysis context.
         out: output executable file.
         main: archive file for the main library.
+        deps: depset of `SwiftLibraryInfo` objects.
     """
     static_library = _create_static_library(ctx, main)
     args = ctx.actions.args()
@@ -90,6 +125,11 @@ def swift_link(ctx, out, main):
         "-L/usr/lib/swift",
         "-force_load",
         static_library,
+    ])
+    archive_files = [dep.archive for dep in deps.to_list()]
+    if len(archive_files):
+        args.add_all(archive_files)
+    args.add_all([
         "-platform_version",
         "macos",
         "11.0.0",
@@ -101,7 +141,7 @@ def swift_link(ctx, out, main):
     apple_support.run(
         actions = ctx.actions,
         arguments = [args],
-        inputs = [main, static_library],
+        inputs = [main, static_library] + archive_files,
         outputs = [out],
         executable = "/usr/bin/ld",
         mnemonic = "SwiftLink",
@@ -112,7 +152,7 @@ def swift_link(ctx, out, main):
 
 def _create_static_library(ctx, binary):
     static_library_name = paths.replace_extension(binary.basename, ".lo")
-    static_library_path = paths.join("intermediates", static_library_name)
+    static_library_path = paths.join("intermediates", ctx.label.name, static_library_name)
     static_library = ctx.actions.declare_file(static_library_path)
 
     args = ["/usr/bin/xcrun", "libtool", "-static", binary.path, "-o", static_library.path]

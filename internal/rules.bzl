@@ -9,32 +9,42 @@ dependencies of a library) and create a plan of how to build it (output files,
 actions).
 """
 
-load(":actions.bzl", "swift_compile", "swift_link")
+load(":actions.bzl", "declare_archive", "declare_swiftmodule", "swift_compile", "swift_link")
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load(
     "@build_bazel_apple_support//lib:apple_support.bzl",
     "apple_support",
 )
+load(":providers.bzl", "SwiftLibraryInfo")
 
 def _swift_binary_impl(ctx):
-    # Declare an output file for the main package and compile it from srcs. All
-    # our output files will start with a prefix to avoid conflicting with
-    # other rules.
-    prefix = ctx.label.name + "%/"
-    main_archive = ctx.actions.declare_file(prefix + "main.a")
+    # EXERCISE: collect SwiftLibraryInfo from dependencies, pass to swift_compile
+    # and swift_link.
+    deps = []
+
+    # Declare an output file for archive and output swiftmodule file for the main package
+    # and compile it from srcs. All our output files will start with a prefix to avoid
+    # conflicting with other rules.
+    main_archive = declare_archive(ctx, "main")
+    swiftmodule = declare_swiftmodule(ctx, "main")
     swift_compile(
         ctx,
         srcs = ctx.files.srcs,
-        out = main_archive,
+        archive = main_archive,
+        swiftmodule = swiftmodule,
+        deps = deps,
+        is_library = False,
     )
 
     # Declare an output file for the executable and link it. Note that output
     # files may not have the same name as the rule, so we still need to use the
     # prefix here.
-    executable = ctx.actions.declare_file(prefix + ctx.label.name)
+    executable_path = "{name}/{name}".format(name = ctx.label.name)
+    executable = ctx.actions.declare_file(executable_path)
     swift_link(
         ctx,
         main = main_archive,
+        deps = deps,
         out = executable,
     )
 
@@ -56,8 +66,21 @@ swift_binary = rule(
             allow_files = [".swift"],
             doc = "Source files to compile for the main package of this binary",
         ),
+        "deps": attr.label_list(
+            providers = [SwiftLibraryInfo],
+            doc = "Direct dependencies of the binary",
+        ),
     }),
     doc = "Builds an executable program from Swift source code",
     executable = True,
     fragments = ["apple"],
 )
+
+def _swift_library_impl(ctx):
+    pass
+    # EXERCISE: declare output files for swiftmodule, archive, actions, return SwiftLibraryInfo
+    # and DefaultInfo.
+
+# EXERCISE: declare swift_library with srcs, deps.
+# Returns SwiftLibraryInfo provider.
+swift_library = None
