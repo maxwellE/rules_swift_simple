@@ -12,3 +12,5 @@ versions.
   rule that produces a library ([`swift_library`](https://github.com/bazelbuild/rules_swift/blob/master/doc/rules.md#swift_library)).
 * **[v3](https://github.com/maxwellE/rules_swift_simple/tree/v3)**: Adds a `data`
   attribute.
+* **[v4](https://github.com/maxwellE/rules_swift_simple/tree/v4)**: Walks through common
+debugging of errors stemming from `visibility` and `glob` attributes.
